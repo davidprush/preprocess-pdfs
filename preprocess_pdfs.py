@@ -7,6 +7,7 @@ import datetime
 import glob
 from pathlib import Path
 import argparse
+import sys
 
 # Function to get current timestamp
 def timestamp():
@@ -23,7 +24,7 @@ def log_print(message, log_file, quiet=False):
 def delete_pdf(pdf_file, log_file, quiet, no_delete, keep_pdfs):
     if no_delete or keep_pdfs:
         log_print(f"{timestamp()}: Skipping deletion of {pdf_file} per user option.", log_file, quiet)
-        return
+        return 0
     log_print(f"{timestamp()}: Deleting {pdf_file}...", log_file, quiet)
     try:
         os.remove(pdf_file)
@@ -45,19 +46,27 @@ def delete_png(png_file, log_file, quiet, no_delete, keep_pngs):
         return 1
     return 0
 
+# Function to handle errors based on user preference
+def handle_error(error_msg, log_file, quiet, error_handling):
+    log_print(error_msg, log_file, quiet)
+    if error_handling == "exit":
+        log_print(f"{timestamp()}: Exiting script due to error as per --error-handling 'exit' option.", log_file, quiet)
+        sys.exit(1)
+
 # Set up argument parser with detailed help
 parser = argparse.ArgumentParser(
     description="A script to preprocess multi-page PDF files by converting them to PNGs and extracting text using ImageMagick and Tesseract. "
                 "Processes all pages of each PDF, logs progress and errors, and provides a summary of results.",
     epilog="Examples:\n"
-           "  python3 preprocess_pdfs.py                    # Process PDFs in current directory with default settings\n"
-           "  python3 preprocess_pdfs.py -i ./pdfs          # Process PDFs from './pdfs' directory\n"
-           "  python3 preprocess_pdfs.py -o ./text          # Save text files to './text' directory\n"
-           "  python3 preprocess_pdfs.py -q -l errors.log   # Quiet mode, log errors to 'errors.log'\n"
-           "  python3 preprocess_pdfs.py -k                 # Keep PDF files, delete PNGs\n"
-           "  python3 preprocess_pdfs.py -p                 # Keep PNG files, delete PDFs\n"
-           "  python3 preprocess_pdfs.py -n                 # Keep all files (PDFs and PNGs)\n"
-           "  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n  # All options combined",
+           "  python3 preprocess_pdfs.py                    # Process PDFs with default settings\n"
+           "  python3 preprocess_pdfs.py -i ./pdfs          # Process PDFs from './pdfs'\n"
+           "  python3 preprocess_pdfs.py -o ./text          # Save text to './text'\n"
+           "  python3 preprocess_pdfs.py -q -l errors.log   # Quiet mode, log to 'errors.log'\n"
+           "  python3 preprocess_pdfs.py -k                 # Keep PDFs\n"
+           "  python3 preprocess_pdfs.py -p                 # Keep PNGs\n"
+           "  python3 preprocess_pdfs.py -n                 # Keep all files\n"
+           "  python3 preprocess_pdfs.py -e exit            # Exit on first error\n"
+           "  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue  # Combined options",
     formatter_class=argparse.RawDescriptionHelpFormatter
 )
 parser.add_argument("-i", "--input-dir", default=".", 
@@ -74,6 +83,8 @@ parser.add_argument("-p", "--keep-pngs", action="store_true",
                     help="Prevent deletion of intermediate PNG files (default: delete PNGs)")
 parser.add_argument("-n", "--no-delete", action="store_true", 
                     help="Prevent deletion of any files (PDFs and PNGs), overrides --keep-pdfs and --keep-pngs")
+parser.add_argument("-e", "--error-handling", choices=["exit", "continue"], default="continue",
+                    help="Action on error: 'exit' to stop script, 'continue' to proceed (default: 'continue')")
 args = parser.parse_args()
 
 # Set variables from arguments
@@ -84,14 +95,16 @@ log_file = args.log_file if args.log_file else f"preprocess_log_{datetime.dateti
 keep_pdfs = args.keep_pdfs
 keep_pngs = args.keep_pngs
 no_delete = args.no_delete
+error_handling = args.error_handling
 
 # Start time tracking
 start_time = time.time()
 
-# Initialize counters
+# Initialize counters and error tracking
 success_count = 0
 fail_count = 0
 error_count = 0
+files_with_errors = []
 
 # Step 1 & 2: Verify and create output directory
 log_print(f"{timestamp()}: Directory '{output_dir}' check...", log_file, quiet)
@@ -100,7 +113,7 @@ if not os.path.isdir(output_dir):
     try:
         os.makedirs(output_dir, exist_ok=True)
     except Exception as e:
-        log_print(f"{timestamp()}: Error: Failed to create '{output_dir}' directory: {e}", log_file, quiet)
+        handle_error(f"{timestamp()}: Error: Failed to create '{output_dir}' directory: {e}", log_file, quiet, error_handling)
         error_count += 1
 else:
     log_print(f"{timestamp()}: Directory '{output_dir}' already exists.", log_file, quiet)
@@ -112,24 +125,30 @@ if not pdf_files:
     log_print(f"{timestamp()}: No PDF files found in '{input_dir}'.", log_file, quiet)
     log_print(f"{timestamp()}: Preprocessing complete! No files to process.", log_file, quiet)
     log_print(f"{timestamp()}: Summary:", log_file, quiet)
-    log_print(f"{timestamp()}:   Total files successfully processed: {success_count}", log_file, quiet)
+    log_print(f"{timestamp()}:   Total files successfully processed: {success_count}", log_print, quiet)
     log_print(f"{timestamp()}:   Total files not processed: {fail_count}", log_file, quiet)
     log_print(f"{timestamp()}:   Total errors encountered: {error_count}", log_file, quiet)
     duration = int(time.time() - start_time)
     log_print(f"{timestamp()}:   Script duration: {duration} seconds", log_file, quiet)
+    if files_with_errors:
+        log_print(f"{timestamp()}: Files with errors:", log_file, quiet)
+        for file in files_with_errors:
+            log_print(f"{timestamp()}:   - {file}", log_file, quiet)
     exit(0)
 
 # Step 3: Process each PDF file
 for pdf_file in pdf_files:
     base_name = Path(pdf_file).stem
+    file_had_error = False
 
     # Step 4: Convert PDF to PNGs (multi-page support)
     log_print(f"{timestamp()}: Converting {pdf_file} to PNGs...", log_file, quiet)
     try:
         subprocess.run(["convert", "-density", "300", pdf_file, "-quality", "100", f"{base_name}-%d.png"], check=False, stderr=subprocess.DEVNULL)
     except Exception as e:
-        log_print(f"{timestamp()}: Error: Failed to convert {pdf_file} to PNGs: {e}", log_file, quiet)
+        handle_error(f"{timestamp()}: Error: Failed to convert {pdf_file} to PNGs: {e}", log_file, quiet, error_handling)
         error_count += 1
+        file_had_error = True
 
     # Check if any PNGs were created
     png_files = glob.glob(f"{base_name}-[0-9]*.png")
@@ -138,10 +157,14 @@ for pdf_file in pdf_files:
         log_print(f"{timestamp()}: Skipping deletion of {pdf_file} due to conversion failure.", log_file, quiet)
         log_print(f"{timestamp()}: Processing of {pdf_file} incomplete due to errors.", log_file, quiet)
         fail_count += 1
+        if not file_had_error:  # Only add if not already added from conversion error
+            files_with_errors.append(pdf_file)
         continue
 
     # Step 5: Delete PDF file if conversion succeeded (unless prevented)
     error_count += delete_pdf(pdf_file, log_file, quiet, no_delete, keep_pdfs)
+    if error_count > (len(png_files) + 1):  # Adjust based on prior errors
+        file_had_error = True
 
     # Process each PNG file (multi-page handling)
     page_success = 0
@@ -155,24 +178,32 @@ for pdf_file in pdf_files:
         try:
             subprocess.run(["tesseract", png_file, f"{output_dir}/{page_base_name}", "-l", "eng", "txt"], check=False, stderr=subprocess.DEVNULL)
         except Exception as e:
-            log_print(f"{timestamp()}: Error: Failed to convert {png_file} to {text_file}: {e}", log_file, quiet)
+            handle_error(f"{timestamp()}: Error: Failed to convert {png_file} to {text_file}: {e}", log_file, quiet, error_handling)
             error_count += 1
+            file_had_error = True
 
         # Step 7: Delete PNG file if text conversion succeeded (unless prevented)
         if os.path.isfile(text_file):
             error_count += delete_png(png_file, log_file, quiet, no_delete, keep_pngs)
+            if error_count > (len(png_files) + 1):  # Adjust based on prior errors
+                file_had_error = True
             page_success += 1
         else:
             log_print(f"{timestamp()}: Skipping deletion of {png_file} due to text conversion failure.", log_file, quiet)
             page_fail += 1
 
-    # Update counters based on page results
+    # Update counters and error tracking
     if page_fail == 0 and page_success > 0:
         log_print(f"{timestamp()}: Successfully processed {pdf_file} (all {page_success} pages)", log_file, quiet)
         success_count += 1
     else:
         log_print(f"{timestamp()}: Processing of {pdf_file} incomplete: {page_success} pages succeeded, {page_fail} pages failed", log_file, quiet)
         fail_count += 1
+        if not file_had_error:  # Only add if not already added from earlier errors
+            files_with_errors.append(pdf_file)
+
+    if file_had_error and not file_had_error in files_with_errors:
+        files_with_errors.append(pdf_file)
 
 # Calculate duration
 duration = int(time.time() - start_time)
@@ -184,4 +215,8 @@ log_print(f"{timestamp()}:   Total files successfully processed: {success_count}
 log_print(f"{timestamp()}:   Total files not processed: {fail_count}", log_file, quiet)
 log_print(f"{timestamp()}:   Total errors encountered: {error_count}", log_file, quiet)
 log_print(f"{timestamp()}:   Script duration: {duration} seconds", log_file, quiet)
+if files_with_errors:
+    log_print(f"{timestamp()}: Files with errors:", log_file, quiet)
+    for file in files_with_errors:
+        log_print(f"{timestamp()}:   - {file}", log_file, quiet)
 log_print(f"{timestamp()}: All output has been logged to {log_file}", log_file, quiet)
