@@ -67,6 +67,7 @@ python3 preprocess_pdfs.py
 | `-p, --keep-pngs` | Prevent deletion of intermediate PNG files | False (delete PNGs) |
 | `-n, --no-delete` | Prevent deletion of any files (PDFs and PNGs), overrides `-k` and `-p` | False (delete all) |
 | `-e, --error-handling` | `{exit,continue}` Action on error: 'exit' to stop script, 'continue' to proceed | continue |
+| `-s, --single-file` | `{FILE_NAME.txt}` Append all extracted text to a single file with headers | separate files per page |
 
 ## Examples
 
@@ -108,7 +109,7 @@ python3 preprocess_pdfs.py -i ./pdfs -o ./text -q -l mylog.txt -n
 ### Help
 
 ```
-usage: preprocess_pdfs.py [-h] [-i INPUT_DIR] [-o OUTPUT_DIR] [-q] [-l LOG_FILE] [-k] [-p] [-n] [-e {exit,continue}]
+usage: preprocess_pdfs.py [-h] [-i INPUT_DIR] [-o OUTPUT_DIR] [-q] [-l LOG_FILE] [-k] [-p] [-n] [-e {exit,continue}] [-s SINGLE_FILE]
 
 A script to preprocess multi-page PDF files by converting them to PNGs and extracting text using ImageMagick and Tesseract. Processes all pages of each PDF, logs progress and errors, and provides a summary of results.
 
@@ -126,6 +127,8 @@ options:
   -n, --no-delete       Prevent deletion of any files (PDFs and PNGs), overrides --keep-pdfs and --keep-pngs
   -e {exit,continue}, --error-handling {exit,continue}
                         Action on error: 'exit' to stop script, 'continue' to proceed (default: 'continue')
+  -s SINGLE_FILE, --single-file SINGLE_FILE
+                        Append all extracted text to a single file with headers (default: separate files per page)
 
 Examples:
   python3 preprocess_pdfs.py                    # Process PDFs with default settings
@@ -136,7 +139,8 @@ Examples:
   python3 preprocess_pdfs.py -p                 # Keep PNGs
   python3 preprocess_pdfs.py -n                 # Keep all files
   python3 preprocess_pdfs.py -e exit            # Exit on first error
-  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue  # Combined options
+  python3 preprocess_pdfs.py -s all_text.txt    # Append all text to 'all_text.txt'
+  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue -s combined.txt  # Combined options
 ```
 The script outputs to both the terminal and a log file with timestamps. Example (default mode):
 
@@ -165,6 +169,29 @@ With `-q` (quiet mode), only errors and the summary appear:
 2025-03-23 14:30:46:   Total files not processed: 1
 2025-03-23 14:30:46:   Total errors encountered: 1
 2025-03-23 14:30:46:   Script duration: 1 seconds
+```
+Example Output with -s all_text.txt
+```
+2025-03-23 14:30:45: Directory 'extracted-text' already exists.
+2025-03-23 14:30:45: Checking for PDF files in '.'...
+2025-03-23 14:30:45: Converting doc1.pdf to PNGs...
+2025-03-23 14:30:45: Deleting doc1.pdf...
+2025-03-23 14:30:46: Converting doc1-0.png to extracted-text/doc1-0.txt...
+2025-03-23 14:30:46: Appended text from extracted-text/doc1-0.txt to all_text.txt
+2025-03-23 14:30:46: Deleting doc1-0.png...
+2025-03-23 14:30:46: Successfully processed doc1.pdf (all 1 pages)
+2025-03-23 14:30:46: Preprocessing complete!
+2025-03-23 14:30:46: Summary:
+2025-03-23 14:30:46:   Total files successfully processed: 1
+2025-03-23 14:30:46:   Total files not processed: 0
+2025-03-23 14:30:46:   Total errors encountered: 0
+2025-03-23 14:30:46:   Script duration: 1 seconds
+2025-03-23 14:30:46: All output has been logged to preprocess_log_20250323_143045.txt
+```
+Resulting all_text.txt
+```
+=== doc1-0.pdf ===
+[Extracted text from page 1 of doc1.pdf]
 ```
 
 ## Notes
