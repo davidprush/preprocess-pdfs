@@ -107,7 +107,7 @@ python3 preprocess_pdfs.py -i ./pdfs -o ./text -q -l mylog.txt -n
 
 ### Help
 
-```bash
+```
 usage: preprocess_pdfs.py [-h] [-i INPUT_DIR] [-o OUTPUT_DIR] [-q] [-l LOG_FILE] [-k] [-p] [-n] [-e {exit,continue}]
 
 A script to preprocess multi-page PDF files by converting them to PNGs and extracting text using ImageMagick and Tesseract. Processes all pages of each PDF, logs progress and errors, and provides a summary of results.
@@ -140,7 +140,7 @@ Examples:
 ```
 The script outputs to both the terminal and a log file with timestamps. Example (default mode):
 
-```bash
+```
 2025-03-23 14:30:45: Directory 'extracted-text' already exists.
 2025-03-23 14:30:45: Converting doc1.pdf to PNGs...
 2025-03-23 14:30:45: Deleting doc1.pdf...
@@ -181,7 +181,7 @@ No PDFs found: Check the input directory specified with -i.
 
 ## License
 This script is provided as-is under the MIT License. Feel free to modify and distribute it as needed.
-```bash
+```
 Copyright 2025 David Rush
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
