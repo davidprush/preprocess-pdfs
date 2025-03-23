@@ -8,6 +8,7 @@ import glob
 from pathlib import Path
 import argparse
 import sys
+import shutil
 
 # Function to get current timestamp
 def timestamp():
@@ -53,6 +54,53 @@ def handle_error(error_msg, log_file, quiet, error_handling):
         log_print(f"{timestamp()}: Exiting script due to error as per --error-handling 'exit' option.", log_file, quiet)
         sys.exit(1)
 
+# Function to append text to a single file with a header
+def append_to_single_file(pdf_file, text_file, single_file, log_file, quiet):
+    if not os.path.isfile(text_file):
+        return False
+    try:
+        with open(text_file, "r") as src, open(single_file, "a") as dest:
+            dest.write(f"\n=== {pdf_file} ===\n")
+            dest.write(src.read())
+            dest.write("\n")
+        log_print(f"{timestamp()}: Appended text from {text_file} to {single_file}", log_file, quiet)
+        os.remove(text_file)  # Remove temp file after appending
+        return True
+    except Exception as e:
+        log_print(f"{timestamp()}: Error: Failed to append {text_file} to {single_file}: {e}", log_file, quiet)
+        return False
+
+# Function to check dependencies
+def check_dependencies():
+    missing = []
+    
+    # Check Python 3 (should always pass if script is running, but included for completeness)
+    if sys.version_info < (3, 0):
+        missing.append("Python 3 is required. Install it from https://www.python.org/downloads/\n"
+                       "  - macOS: brew install python\n"
+                       "  - Linux: sudo apt-get install python3 (Ubuntu/Debian) or sudo dnf install python3 (Fedora)")
+
+    # Check ImageMagick (convert)
+    if not shutil.which("convert"):
+        missing.append("ImageMagick is missing (required for 'convert'). Install it:\n"
+                       "  - macOS: brew install imagemagick\n"
+                       "  - Linux: sudo apt-get install imagemagick (Ubuntu/Debian) or sudo dnf install imagemagick (Fedora)\n"
+                       "  - Windows: Download from https://imagemagick.org/script/download.php")
+
+    # Check Tesseract
+    if not shutil.which("tesseract"):
+        missing.append("Tesseract OCR is missing. Install it:\n"
+                       "  - macOS: brew install tesseract\n"
+                       "  - Linux: sudo apt-get install tesseract-ocr (Ubuntu/Debian) or sudo dnf install tesseract (Fedora)\n"
+                       "  - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki")
+
+    if missing:
+        print("Error: The following dependencies are missing:")
+        for dep in missing:
+            print(dep)
+        print("Please install the missing dependencies and try again.")
+        sys.exit(1)
+
 # Set up argument parser with detailed help
 parser = argparse.ArgumentParser(
     description="A script to preprocess multi-page PDF files by converting them to PNGs and extracting text using ImageMagick and Tesseract. "
@@ -66,7 +114,8 @@ parser = argparse.ArgumentParser(
            "  python3 preprocess_pdfs.py -p                 # Keep PNGs\n"
            "  python3 preprocess_pdfs.py -n                 # Keep all files\n"
            "  python3 preprocess_pdfs.py -e exit            # Exit on first error\n"
-           "  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue  # Combined options",
+           "  python3 preprocess_pdfs.py -s all_text.txt    # Append all text to 'all_text.txt'\n"
+           "  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue -s combined.txt  # Combined options",
     formatter_class=argparse.RawDescriptionHelpFormatter
 )
 parser.add_argument("-i", "--input-dir", default=".", 
@@ -85,7 +134,12 @@ parser.add_argument("-n", "--no-delete", action="store_true",
                     help="Prevent deletion of any files (PDFs and PNGs), overrides --keep-pdfs and --keep-pngs")
 parser.add_argument("-e", "--error-handling", choices=["exit", "continue"], default="continue",
                     help="Action on error: 'exit' to stop script, 'continue' to proceed (default: 'continue')")
+parser.add_argument("-s", "--single-file", 
+                    help="Append all extracted text to a single file with headers (default: separate files per page)")
 args = parser.parse_args()
+
+# Check dependencies before proceeding
+check_dependencies()
 
 # Set variables from arguments
 input_dir = args.input_dir
@@ -96,6 +150,7 @@ keep_pdfs = args.keep_pdfs
 keep_pngs = args.keep_pngs
 no_delete = args.no_delete
 error_handling = args.error_handling
+single_file = args.single_file
 
 # Start time tracking
 start_time = time.time()
@@ -171,23 +226,32 @@ for pdf_file in pdf_files:
     page_fail = 0
     for png_file in png_files:
         page_base_name = Path(png_file).stem
-        text_file = f"{output_dir}/{page_base_name}.txt"
+        temp_text_file = f"{output_dir}/{page_base_name}.txt"
 
         # Step 6: Convert PNG to text using Tesseract
-        log_print(f"{timestamp()}: Converting {png_file} to {text_file}...", log_file, quiet)
+        log_print(f"{timestamp()}: Converting {png_file} to {temp_text_file}...", log_file, quiet)
         try:
             subprocess.run(["tesseract", png_file, f"{output_dir}/{page_base_name}", "-l", "eng", "txt"], check=False, stderr=subprocess.DEVNULL)
         except Exception as e:
-            handle_error(f"{timestamp()}: Error: Failed to convert {png_file} to {text_file}: {e}", log_file, quiet, error_handling)
+            handle_error(f"{timestamp()}: Error: Failed to convert {png_file} to {temp_text_file}: {e}", log_file, quiet, error_handling)
             error_count += 1
             file_had_error = True
 
-        # Step 7: Delete PNG file if text conversion succeeded (unless prevented)
-        if os.path.isfile(text_file):
+        # Step 7: Handle text output (single file or separate)
+        if os.path.isfile(temp_text_file):
+            if single_file:
+                if append_to_single_file(f"{page_base_name}.pdf", temp_text_file, single_file, log_file, quiet):
+                    page_success += 1
+                else:
+                    page_fail += 1
+                    file_had_error = True
+            else:
+                page_success += 1
+
+            # Delete PNG file if text conversion succeeded (unless prevented)
             error_count += delete_png(png_file, log_file, quiet, no_delete, keep_pngs)
             if error_count > (len(png_files) + 1):  # Adjust based on prior errors
                 file_had_error = True
-            page_success += 1
         else:
             log_print(f"{timestamp()}: Skipping deletion of {png_file} due to text conversion failure.", log_file, quiet)
             page_fail += 1
@@ -202,7 +266,7 @@ for pdf_file in pdf_files:
         if not file_had_error:  # Only add if not already added from earlier errors
             files_with_errors.append(pdf_file)
 
-    if file_had_error and not file_had_error in files_with_errors:
+    if file_had_error and pdf_file not in files_with_errors:
         files_with_errors.append(pdf_file)
 
 # Calculate duration
