@@ -66,6 +66,7 @@ python3 preprocess_pdfs.py
 | `-k, --keep-pdfs` | Prevent deletion of original PDF files| False (delete PDFs) |
 | `-p, --keep-pngs` | Prevent deletion of intermediate PNG files | False (delete PNGs) |
 | `-n, --no-delete` | Prevent deletion of any files (PDFs and PNGs), overrides `-k` and `-p` | False (delete all) |
+| `-e, --error-handling` | Action on error: 'exit' to stop script, 'continue' to proceed | continue |
 
 ## Examples
 
@@ -104,6 +105,39 @@ python3 preprocess_pdfs.py -i ./pdfs -o ./text -q -l mylog.txt -n
 
 ## Output
 
+### Help
+
+```bash
+usage: preprocess_pdfs.py [-h] [-i INPUT_DIR] [-o OUTPUT_DIR] [-q] [-l LOG_FILE] [-k] [-p] [-n] [-e {exit,continue}]
+
+A script to preprocess multi-page PDF files by converting them to PNGs and extracting text using ImageMagick and Tesseract. Processes all pages of each PDF, logs progress and errors, and provides a summary of results.
+
+options:
+  -h, --help            show this help message and exit
+  -i INPUT_DIR, --input-dir INPUT_DIR
+                        Directory containing PDF files to process (default: current directory '.')
+  -o OUTPUT_DIR, --output-dir OUTPUT_DIR
+                        Directory where extracted text files will be saved (default: 'extracted-text')
+  -q, --quiet           Limit terminal output and log file entries to errors only (default: verbose output)
+  -l LOG_FILE, --log-file LOG_FILE
+                        Custom name for the log file (default: 'preprocess_log_YYYYMMDD_HHMMSS.txt')
+  -k, --keep-pdfs       Prevent deletion of original PDF files (default: delete PDFs)
+  -p, --keep-pngs       Prevent deletion of intermediate PNG files (default: delete PNGs)
+  -n, --no-delete       Prevent deletion of any files (PDFs and PNGs), overrides --keep-pdfs and --keep-pngs
+  -e {exit,continue}, --error-handling {exit,continue}
+                        Action on error: 'exit' to stop script, 'continue' to proceed (default: 'continue')
+
+Examples:
+  python3 preprocess_pdfs.py                    # Process PDFs with default settings
+  python3 preprocess_pdfs.py -i ./pdfs          # Process PDFs from './pdfs'
+  python3 preprocess_pdfs.py -o ./text          # Save text to './text'
+  python3 preprocess_pdfs.py -q -l errors.log   # Quiet mode, log to 'errors.log'
+  python3 preprocess_pdfs.py -k                 # Keep PDFs
+  python3 preprocess_pdfs.py -p                 # Keep PNGs
+  python3 preprocess_pdfs.py -n                 # Keep all files
+  python3 preprocess_pdfs.py -e exit            # Exit on first error
+  python3 preprocess_pdfs.py -i pdfs -o text -q -l mylog.txt -n -e continue  # Combined options
+```
 The script outputs to both the terminal and a log file with timestamps. Example (default mode):
 
 ```bash
