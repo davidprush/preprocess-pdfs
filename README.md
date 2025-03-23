@@ -66,7 +66,7 @@ python3 preprocess_pdfs.py
 | `-k, --keep-pdfs` | Prevent deletion of original PDF files| False (delete PDFs) |
 | `-p, --keep-pngs` | Prevent deletion of intermediate PNG files | False (delete PNGs) |
 | `-n, --no-delete` | Prevent deletion of any files (PDFs and PNGs), overrides `-k` and `-p` | False (delete all) |
-| `-e, --error-handling` | Action on error: 'exit' to stop script, 'continue' to proceed | continue |
+| `-e, --error-handling` | `{exit,continue}` Action on error: 'exit' to stop script, 'continue' to proceed | continue |
 
 ## Examples
 
